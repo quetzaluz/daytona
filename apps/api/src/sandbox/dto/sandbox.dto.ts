@@ -5,7 +5,7 @@
 
 import { ApiProperty, ApiPropertyOptional, ApiSchema } from '@nestjs/swagger'
 import { SandboxState } from '../enums/sandbox-state.enum'
-import { IsEnum, IsOptional } from 'class-validator'
+import { IsEnum, IsObject, IsOptional } from 'class-validator'
 import { BackupState } from '../enums/backup-state.enum'
 import { Sandbox } from '../entities/sandbox.entity'
 import { SandboxDesiredState } from '../enums/sandbox-desired-state.enum'
@@ -392,5 +392,6 @@ export class SandboxLabelsDto {
     type: 'object',
     additionalProperties: { type: 'string' },
   })
+  @IsObject()
   labels: { [key: string]: string }
 }
