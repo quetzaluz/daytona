@@ -844,7 +844,6 @@ paths:
         in: query
         name: scale
         schema:
-          format: float64
           type: number
       responses:
         "200":
@@ -948,7 +947,6 @@ paths:
         in: query
         name: scale
         schema:
-          format: float64
           type: number
       responses:
         "200":
@@ -2612,7 +2610,6 @@ components:
         points:
           items:
             items:
-              format: float64
               type: number
             type: array
           type: array
