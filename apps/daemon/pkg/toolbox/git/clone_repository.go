@@ -64,7 +64,12 @@ func CloneRepository(c *gin.Context) {
 
 	insecureSkipTLS := req.InsecureSkipTLS != nil && *req.InsecureSkipTLS
 
-	err := gitService.CloneRepository(&repo, auth, insecureSkipTLS)
+	depth := 0
+	if req.Depth != nil {
+		depth = int(*req.Depth)
+	}
+
+	err := gitService.CloneRepository(&repo, auth, insecureSkipTLS, depth)
 	if err != nil {
 		abortWithGitError(c, err)
 		return

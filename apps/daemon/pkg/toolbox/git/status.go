@@ -40,5 +40,10 @@ func GetStatus(c *gin.Context) {
 		return
 	}
 
+	if usesLegacyGitFields(c.Request.Header) {
+		status.Detached = false
+		status.Upstream = ""
+	}
+
 	c.JSON(http.StatusOK, status)
 }

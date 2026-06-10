@@ -12,7 +12,6 @@ package toolbox
 
 import (
 	"encoding/json"
-	"bytes"
 	"fmt"
 )
 
@@ -25,7 +24,12 @@ type GitStatus struct {
 	Behind *int32 `json:"behind,omitempty"`
 	BranchPublished *bool `json:"branchPublished,omitempty"`
 	CurrentBranch string `json:"currentBranch"`
+	// Detached is true when HEAD is not on a branch (detached HEAD state).
+	Detached *bool `json:"detached,omitempty"`
 	FileStatus []FileStatus `json:"fileStatus"`
+	// Upstream is the upstream tracking branch (e.g. \"origin/main\"), empty when unset.
+	Upstream *string `json:"upstream,omitempty"`
+	AdditionalProperties map[string]interface{}
 }
 
 type _GitStatus GitStatus
@@ -169,6 +173,38 @@ func (o *GitStatus) SetCurrentBranch(v string) {
 	o.CurrentBranch = v
 }
 
+// GetDetached returns the Detached field value if set, zero value otherwise.
+func (o *GitStatus) GetDetached() bool {
+	if o == nil || IsNil(o.Detached) {
+		var ret bool
+		return ret
+	}
+	return *o.Detached
+}
+
+// GetDetachedOk returns a tuple with the Detached field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GitStatus) GetDetachedOk() (*bool, bool) {
+	if o == nil || IsNil(o.Detached) {
+		return nil, false
+	}
+	return o.Detached, true
+}
+
+// HasDetached returns a boolean if a field has been set.
+func (o *GitStatus) HasDetached() bool {
+	if o != nil && !IsNil(o.Detached) {
+		return true
+	}
+
+	return false
+}
+
+// SetDetached gets a reference to the given bool and assigns it to the Detached field.
+func (o *GitStatus) SetDetached(v bool) {
+	o.Detached = &v
+}
+
 // GetFileStatus returns the FileStatus field value
 func (o *GitStatus) GetFileStatus() []FileStatus {
 	if o == nil {
@@ -193,6 +229,38 @@ func (o *GitStatus) SetFileStatus(v []FileStatus) {
 	o.FileStatus = v
 }
 
+// GetUpstream returns the Upstream field value if set, zero value otherwise.
+func (o *GitStatus) GetUpstream() string {
+	if o == nil || IsNil(o.Upstream) {
+		var ret string
+		return ret
+	}
+	return *o.Upstream
+}
+
+// GetUpstreamOk returns a tuple with the Upstream field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GitStatus) GetUpstreamOk() (*string, bool) {
+	if o == nil || IsNil(o.Upstream) {
+		return nil, false
+	}
+	return o.Upstream, true
+}
+
+// HasUpstream returns a boolean if a field has been set.
+func (o *GitStatus) HasUpstream() bool {
+	if o != nil && !IsNil(o.Upstream) {
+		return true
+	}
+
+	return false
+}
+
+// SetUpstream gets a reference to the given string and assigns it to the Upstream field.
+func (o *GitStatus) SetUpstream(v string) {
+	o.Upstream = &v
+}
+
 func (o GitStatus) MarshalJSON() ([]byte, error) {
 	toSerialize,err := o.ToMap()
 	if err != nil {
@@ -213,7 +281,18 @@ func (o GitStatus) ToMap() (map[string]interface{}, error) {
 		toSerialize["branchPublished"] = o.BranchPublished
 	}
 	toSerialize["currentBranch"] = o.CurrentBranch
+	if !IsNil(o.Detached) {
+		toSerialize["detached"] = o.Detached
+	}
 	toSerialize["fileStatus"] = o.FileStatus
+	if !IsNil(o.Upstream) {
+		toSerialize["upstream"] = o.Upstream
+	}
+
+	for key, value := range o.AdditionalProperties {
+		toSerialize[key] = value
+	}
+
 	return toSerialize, nil
 }
 
@@ -242,15 +321,26 @@ func (o *GitStatus) UnmarshalJSON(data []byte) (err error) {
 
 	varGitStatus := _GitStatus{}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	err = decoder.Decode(&varGitStatus)
+	err = json.Unmarshal(data, &varGitStatus)
 
 	if err != nil {
 		return err
 	}
 
 	*o = GitStatus(varGitStatus)
+
+	additionalProperties := make(map[string]interface{})
+
+	if err = json.Unmarshal(data, &additionalProperties); err == nil {
+		delete(additionalProperties, "ahead")
+		delete(additionalProperties, "behind")
+		delete(additionalProperties, "branchPublished")
+		delete(additionalProperties, "currentBranch")
+		delete(additionalProperties, "detached")
+		delete(additionalProperties, "fileStatus")
+		delete(additionalProperties, "upstream")
+		o.AdditionalProperties = additionalProperties
+	}
 
 	return err
 }

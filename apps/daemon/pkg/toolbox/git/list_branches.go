@@ -34,13 +34,18 @@ func ListBranches(c *gin.Context) {
 		WorkDir: path,
 	}
 
-	branchList, err := gitService.ListBranches()
+	branchList, current, err := gitService.ListBranches()
 	if err != nil {
 		abortWithGitError(c, err)
 		return
 	}
 
+	if usesLegacyGitFields(c.Request.Header) {
+		current = ""
+	}
+
 	c.JSON(http.StatusOK, ListBranchResponse{
 		Branches: branchList,
+		Current:  current,
 	})
 }

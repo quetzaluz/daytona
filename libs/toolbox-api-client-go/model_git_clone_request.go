@@ -12,7 +12,6 @@ package toolbox
 
 import (
 	"encoding/json"
-	"bytes"
 	"fmt"
 )
 
@@ -23,12 +22,15 @@ var _ MappedNullable = &GitCloneRequest{}
 type GitCloneRequest struct {
 	Branch *string `json:"branch,omitempty"`
 	CommitId *string `json:"commit_id,omitempty"`
+	// Depth creates a shallow clone truncated to the given number of commits.
+	Depth *int32 `json:"depth,omitempty"`
 	// Skip TLS certificate verification for this clone. Defaults to false (verify). Set to true ONLY for trusted internal Git servers with self-signed or private-CA certs; credentials, if supplied, will be transmitted over an unverified TLS connection and are exposed to any MITM on the route.
 	InsecureSkipTls *bool `json:"insecure_skip_tls,omitempty"`
 	Password *string `json:"password,omitempty"`
 	Path string `json:"path"`
 	Url string `json:"url"`
 	Username *string `json:"username,omitempty"`
+	AdditionalProperties map[string]interface{}
 }
 
 type _GitCloneRequest GitCloneRequest
@@ -114,6 +116,38 @@ func (o *GitCloneRequest) HasCommitId() bool {
 // SetCommitId gets a reference to the given string and assigns it to the CommitId field.
 func (o *GitCloneRequest) SetCommitId(v string) {
 	o.CommitId = &v
+}
+
+// GetDepth returns the Depth field value if set, zero value otherwise.
+func (o *GitCloneRequest) GetDepth() int32 {
+	if o == nil || IsNil(o.Depth) {
+		var ret int32
+		return ret
+	}
+	return *o.Depth
+}
+
+// GetDepthOk returns a tuple with the Depth field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GitCloneRequest) GetDepthOk() (*int32, bool) {
+	if o == nil || IsNil(o.Depth) {
+		return nil, false
+	}
+	return o.Depth, true
+}
+
+// HasDepth returns a boolean if a field has been set.
+func (o *GitCloneRequest) HasDepth() bool {
+	if o != nil && !IsNil(o.Depth) {
+		return true
+	}
+
+	return false
+}
+
+// SetDepth gets a reference to the given int32 and assigns it to the Depth field.
+func (o *GitCloneRequest) SetDepth(v int32) {
+	o.Depth = &v
 }
 
 // GetInsecureSkipTls returns the InsecureSkipTls field value if set, zero value otherwise.
@@ -276,6 +310,9 @@ func (o GitCloneRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.CommitId) {
 		toSerialize["commit_id"] = o.CommitId
 	}
+	if !IsNil(o.Depth) {
+		toSerialize["depth"] = o.Depth
+	}
 	if !IsNil(o.InsecureSkipTls) {
 		toSerialize["insecure_skip_tls"] = o.InsecureSkipTls
 	}
@@ -287,6 +324,11 @@ func (o GitCloneRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Username) {
 		toSerialize["username"] = o.Username
 	}
+
+	for key, value := range o.AdditionalProperties {
+		toSerialize[key] = value
+	}
+
 	return toSerialize, nil
 }
 
@@ -315,15 +357,27 @@ func (o *GitCloneRequest) UnmarshalJSON(data []byte) (err error) {
 
 	varGitCloneRequest := _GitCloneRequest{}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	err = decoder.Decode(&varGitCloneRequest)
+	err = json.Unmarshal(data, &varGitCloneRequest)
 
 	if err != nil {
 		return err
 	}
 
 	*o = GitCloneRequest(varGitCloneRequest)
+
+	additionalProperties := make(map[string]interface{})
+
+	if err = json.Unmarshal(data, &additionalProperties); err == nil {
+		delete(additionalProperties, "branch")
+		delete(additionalProperties, "commit_id")
+		delete(additionalProperties, "depth")
+		delete(additionalProperties, "insecure_skip_tls")
+		delete(additionalProperties, "password")
+		delete(additionalProperties, "path")
+		delete(additionalProperties, "url")
+		delete(additionalProperties, "username")
+		o.AdditionalProperties = additionalProperties
+	}
 
 	return err
 }

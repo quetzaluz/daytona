@@ -12,7 +12,6 @@ package toolbox
 
 import (
 	"encoding/json"
-	"bytes"
 	"fmt"
 )
 
@@ -22,6 +21,9 @@ var _ MappedNullable = &ListBranchResponse{}
 // ListBranchResponse struct for ListBranchResponse
 type ListBranchResponse struct {
 	Branches []string `json:"branches"`
+	// Current is the name of the checked out branch (empty when HEAD is detached).
+	Current *string `json:"current,omitempty"`
+	AdditionalProperties map[string]interface{}
 }
 
 type _ListBranchResponse ListBranchResponse
@@ -68,6 +70,38 @@ func (o *ListBranchResponse) SetBranches(v []string) {
 	o.Branches = v
 }
 
+// GetCurrent returns the Current field value if set, zero value otherwise.
+func (o *ListBranchResponse) GetCurrent() string {
+	if o == nil || IsNil(o.Current) {
+		var ret string
+		return ret
+	}
+	return *o.Current
+}
+
+// GetCurrentOk returns a tuple with the Current field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ListBranchResponse) GetCurrentOk() (*string, bool) {
+	if o == nil || IsNil(o.Current) {
+		return nil, false
+	}
+	return o.Current, true
+}
+
+// HasCurrent returns a boolean if a field has been set.
+func (o *ListBranchResponse) HasCurrent() bool {
+	if o != nil && !IsNil(o.Current) {
+		return true
+	}
+
+	return false
+}
+
+// SetCurrent gets a reference to the given string and assigns it to the Current field.
+func (o *ListBranchResponse) SetCurrent(v string) {
+	o.Current = &v
+}
+
 func (o ListBranchResponse) MarshalJSON() ([]byte, error) {
 	toSerialize,err := o.ToMap()
 	if err != nil {
@@ -79,6 +113,14 @@ func (o ListBranchResponse) MarshalJSON() ([]byte, error) {
 func (o ListBranchResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["branches"] = o.Branches
+	if !IsNil(o.Current) {
+		toSerialize["current"] = o.Current
+	}
+
+	for key, value := range o.AdditionalProperties {
+		toSerialize[key] = value
+	}
+
 	return toSerialize, nil
 }
 
@@ -106,15 +148,21 @@ func (o *ListBranchResponse) UnmarshalJSON(data []byte) (err error) {
 
 	varListBranchResponse := _ListBranchResponse{}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	err = decoder.Decode(&varListBranchResponse)
+	err = json.Unmarshal(data, &varListBranchResponse)
 
 	if err != nil {
 		return err
 	}
 
 	*o = ListBranchResponse(varListBranchResponse)
+
+	additionalProperties := make(map[string]interface{})
+
+	if err = json.Unmarshal(data, &additionalProperties); err == nil {
+		delete(additionalProperties, "branches")
+		delete(additionalProperties, "current")
+		o.AdditionalProperties = additionalProperties
+	}
 
 	return err
 }
