@@ -5,27 +5,37 @@
 
 import LoadingFallback from '@/components/LoadingFallback'
 import { RoutePath } from '@/enums/RoutePath'
-import React from 'react'
-import { useAuth } from 'react-oidc-context'
+import React, { useEffect, useRef } from 'react'
+import { hasAuthParams, useAuth } from 'react-oidc-context'
 import { Navigate, useLocation } from 'react-router'
 
 const LandingPage: React.FC = () => {
-  const { signinRedirect, isAuthenticated, isLoading } = useAuth()
+  const { activeNavigator, signinRedirect, isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
+  const hasTriedSigninRef = useRef(false)
 
-  if (isLoading) {
-    return <LoadingFallback />
-  }
+  useEffect(() => {
+    if (!hasAuthParams() && !isAuthenticated && !activeNavigator && !isLoading && !hasTriedSigninRef.current) {
+      hasTriedSigninRef.current = true
+      signinRedirect({
+        state: {
+          returnTo: location.pathname + location.search,
+        },
+      }).catch((error) => {
+        console.error('Failed to start sign-in redirect:', error)
+      })
+    }
+  }, [activeNavigator, isAuthenticated, isLoading, location.pathname, location.search, signinRedirect])
 
   if (isAuthenticated) {
     return <Navigate to={`${RoutePath.DASHBOARD}${location.search}`} replace />
-  } else {
-    void signinRedirect({
-      state: {
-        returnTo: location.pathname + location.search,
-      },
-    })
   }
+
+  if (isLoading) {
+    return <LoadingFallback source="landing-auth-loading" />
+  }
+
+  return <LoadingFallback source="landing-signin-redirect" />
 }
 
 export default LandingPage

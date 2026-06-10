@@ -8,18 +8,18 @@ import LoadingFallback from '@/components/LoadingFallback'
 import { ApiContext } from '@/contexts/ApiContext'
 import { useConfig } from '@/hooks/useConfig'
 import { useEffect, useRef, useState } from 'react'
-import { useAuth } from 'react-oidc-context'
+import { hasAuthParams, useAuth } from 'react-oidc-context'
 import { useLocation } from 'react-router'
 
 export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isAuthenticated, isLoading, signinRedirect } = useAuth()
+  const { activeNavigator, user, isAuthenticated, isLoading, signinRedirect } = useAuth()
   const config = useConfig()
   const location = useLocation()
 
   const apiRef = useRef<ApiClient | null>(null)
+  const hasTriedSigninRef = useRef(false)
   const [isApiReady, setIsApiReady] = useState(false)
 
-  // Initialize API client as soon as user is available
   useEffect(() => {
     if (user) {
       if (!apiRef.current) {
@@ -34,17 +34,20 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, config])
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      void signinRedirect({
+    if (!hasAuthParams() && !isAuthenticated && !activeNavigator && !isLoading && !hasTriedSigninRef.current) {
+      hasTriedSigninRef.current = true
+      signinRedirect({
         state: {
           returnTo: location.pathname + location.search,
         },
+      }).catch((error) => {
+        console.error('Failed to start sign-in redirect:', error)
       })
     }
-  }, [isLoading, isAuthenticated, signinRedirect, location])
+  }, [activeNavigator, isAuthenticated, isLoading, location.pathname, location.search, signinRedirect])
 
   if (isLoading || !isApiReady) {
-    return <LoadingFallback />
+    return <LoadingFallback source="api-provider" />
   }
 
   return <ApiContext.Provider value={apiRef.current}>{children}</ApiContext.Provider>
