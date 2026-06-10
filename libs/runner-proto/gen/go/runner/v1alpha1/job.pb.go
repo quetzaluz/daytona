@@ -31,7 +31,6 @@ const (
 	JobType_JOB_TYPE_SNAPSHOT_SANDBOX JobType = 1
 	JobType_JOB_TYPE_FORK_SANDBOX     JobType = 2
 	JobType_JOB_TYPE_PAUSE_SANDBOX    JobType = 3
-	JobType_JOB_TYPE_RESUME_SANDBOX   JobType = 4
 )
 
 // Enum value maps for JobType.
@@ -41,14 +40,12 @@ var (
 		1: "JOB_TYPE_SNAPSHOT_SANDBOX",
 		2: "JOB_TYPE_FORK_SANDBOX",
 		3: "JOB_TYPE_PAUSE_SANDBOX",
-		4: "JOB_TYPE_RESUME_SANDBOX",
 	}
 	JobType_value = map[string]int32{
 		"JOB_TYPE_UNSPECIFIED":      0,
 		"JOB_TYPE_SNAPSHOT_SANDBOX": 1,
 		"JOB_TYPE_FORK_SANDBOX":     2,
 		"JOB_TYPE_PAUSE_SANDBOX":    3,
-		"JOB_TYPE_RESUME_SANDBOX":   4,
 	}
 )
 
@@ -443,86 +440,6 @@ func (*PauseSandboxResult) Descriptor() ([]byte, []int) {
 	return file_runner_v1alpha1_job_proto_rawDescGZIP(), []int{6}
 }
 
-type ResumeSandboxPayload struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SandboxId     string                 `protobuf:"bytes,1,opt,name=sandbox_id,json=sandboxId,proto3" json:"sandbox_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResumeSandboxPayload) Reset() {
-	*x = ResumeSandboxPayload{}
-	mi := &file_runner_v1alpha1_job_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResumeSandboxPayload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResumeSandboxPayload) ProtoMessage() {}
-
-func (x *ResumeSandboxPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_runner_v1alpha1_job_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResumeSandboxPayload.ProtoReflect.Descriptor instead.
-func (*ResumeSandboxPayload) Descriptor() ([]byte, []int) {
-	return file_runner_v1alpha1_job_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ResumeSandboxPayload) GetSandboxId() string {
-	if x != nil {
-		return x.SandboxId
-	}
-	return ""
-}
-
-type ResumeSandboxResult struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResumeSandboxResult) Reset() {
-	*x = ResumeSandboxResult{}
-	mi := &file_runner_v1alpha1_job_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResumeSandboxResult) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResumeSandboxResult) ProtoMessage() {}
-
-func (x *ResumeSandboxResult) ProtoReflect() protoreflect.Message {
-	mi := &file_runner_v1alpha1_job_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResumeSandboxResult.ProtoReflect.Descriptor instead.
-func (*ResumeSandboxResult) Descriptor() ([]byte, []int) {
-	return file_runner_v1alpha1_job_proto_rawDescGZIP(), []int{8}
-}
-
 var File_runner_v1alpha1_job_proto protoreflect.FileDescriptor
 
 const file_runner_v1alpha1_job_proto_rawDesc = "" +
@@ -557,17 +474,12 @@ const file_runner_v1alpha1_job_proto_rawDesc = "" +
 	"\x13PauseSandboxPayload\x12\x1d\n" +
 	"\n" +
 	"sandbox_id\x18\x01 \x01(\tR\tsandboxId\"\x14\n" +
-	"\x12PauseSandboxResult\"5\n" +
-	"\x14ResumeSandboxPayload\x12\x1d\n" +
-	"\n" +
-	"sandbox_id\x18\x01 \x01(\tR\tsandboxId\"\x15\n" +
-	"\x13ResumeSandboxResult*\x96\x01\n" +
+	"\x12PauseSandboxResult*y\n" +
 	"\aJobType\x12\x18\n" +
 	"\x14JOB_TYPE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19JOB_TYPE_SNAPSHOT_SANDBOX\x10\x01\x12\x19\n" +
 	"\x15JOB_TYPE_FORK_SANDBOX\x10\x02\x12\x1a\n" +
-	"\x16JOB_TYPE_PAUSE_SANDBOX\x10\x03\x12\x1b\n" +
-	"\x17JOB_TYPE_RESUME_SANDBOX\x10\x04BGZEgithub.com/daytonaio/daytona/gen/proto/runner/v1alpha1;runnerv1alpha1b\x06proto3"
+	"\x16JOB_TYPE_PAUSE_SANDBOX\x10\x03BGZEgithub.com/daytonaio/daytona/gen/proto/runner/v1alpha1;runnerv1alpha1b\x06proto3"
 
 var (
 	file_runner_v1alpha1_job_proto_rawDescOnce sync.Once
@@ -582,7 +494,7 @@ func file_runner_v1alpha1_job_proto_rawDescGZIP() []byte {
 }
 
 var file_runner_v1alpha1_job_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_runner_v1alpha1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_runner_v1alpha1_job_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_runner_v1alpha1_job_proto_goTypes = []any{
 	(JobType)(0),                   // 0: runner.v1alpha1.JobType
 	(*Registry)(nil),               // 1: runner.v1alpha1.Registry
@@ -592,8 +504,6 @@ var file_runner_v1alpha1_job_proto_goTypes = []any{
 	(*ForkSandboxResult)(nil),      // 5: runner.v1alpha1.ForkSandboxResult
 	(*PauseSandboxPayload)(nil),    // 6: runner.v1alpha1.PauseSandboxPayload
 	(*PauseSandboxResult)(nil),     // 7: runner.v1alpha1.PauseSandboxResult
-	(*ResumeSandboxPayload)(nil),   // 8: runner.v1alpha1.ResumeSandboxPayload
-	(*ResumeSandboxResult)(nil),    // 9: runner.v1alpha1.ResumeSandboxResult
 }
 var file_runner_v1alpha1_job_proto_depIdxs = []int32{
 	1, // 0: runner.v1alpha1.SnapshotSandboxPayload.registry:type_name -> runner.v1alpha1.Registry
@@ -618,7 +528,7 @@ func file_runner_v1alpha1_job_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runner_v1alpha1_job_proto_rawDesc), len(file_runner_v1alpha1_job_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   9,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

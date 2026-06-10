@@ -14,7 +14,7 @@ import type { Message } from '@bufbuild/protobuf'
 export const file_runner_v1alpha1_job: GenFile =
   /*@__PURE__*/
   fileDesc(
-    'ChlydW5uZXIvdjFhbHBoYTEvam9iLnByb3RvEg9ydW5uZXIudjFhbHBoYTEigQEKCFJlZ2lzdHJ5EgsKA3VybBgBIAEoCRIVCgh1c2VybmFtZRgCIAEoCUgAiAEBEhUKCHBhc3N3b3JkGAMgASgJSAGIAQESFAoHcHJvamVjdBgEIAEoCUgCiAEBQgsKCV91c2VybmFtZUILCglfcGFzc3dvcmRCCgoIX3Byb2plY3QikgEKFlNuYXBzaG90U2FuZGJveFBheWxvYWQSEgoKc2FuZGJveF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCRIwCghyZWdpc3RyeRgEIAEoCzIZLnJ1bm5lci52MWFscGhhMS5SZWdpc3RyeUgAiAEBQgsKCV9yZWdpc3RyeSJHChJGb3JrU2FuZGJveFBheWxvYWQSGQoRc291cmNlX3NhbmRib3hfaWQYASABKAkSFgoObmV3X3NhbmRib3hfaWQYAiABKAkiOQoVU25hcHNob3RTYW5kYm94UmVzdWx0EhIKCnNpemVfYnl0ZXMYASABKAMSDAoEaGFzaBgCIAEoCSJDChFGb3JrU2FuZGJveFJlc3VsdBIbCg5kYWVtb25fdmVyc2lvbhgBIAEoCUgAiAEBQhEKD19kYWVtb25fdmVyc2lvbiIpChNQYXVzZVNhbmRib3hQYXlsb2FkEhIKCnNhbmRib3hfaWQYASABKAkiFAoSUGF1c2VTYW5kYm94UmVzdWx0IioKFFJlc3VtZVNhbmRib3hQYXlsb2FkEhIKCnNhbmRib3hfaWQYASABKAkiFQoTUmVzdW1lU2FuZGJveFJlc3VsdCqWAQoHSm9iVHlwZRIYChRKT0JfVFlQRV9VTlNQRUNJRklFRBAAEh0KGUpPQl9UWVBFX1NOQVBTSE9UX1NBTkRCT1gQARIZChVKT0JfVFlQRV9GT1JLX1NBTkRCT1gQAhIaChZKT0JfVFlQRV9QQVVTRV9TQU5EQk9YEAMSGwoXSk9CX1RZUEVfUkVTVU1FX1NBTkRCT1gQBEJHWkVnaXRodWIuY29tL2RheXRvbmFpby9kYXl0b25hL2dlbi9wcm90by9ydW5uZXIvdjFhbHBoYTE7cnVubmVydjFhbHBoYTFiBnByb3RvMw',
+    'ChlydW5uZXIvdjFhbHBoYTEvam9iLnByb3RvEg9ydW5uZXIudjFhbHBoYTEigQEKCFJlZ2lzdHJ5EgsKA3VybBgBIAEoCRIVCgh1c2VybmFtZRgCIAEoCUgAiAEBEhUKCHBhc3N3b3JkGAMgASgJSAGIAQESFAoHcHJvamVjdBgEIAEoCUgCiAEBQgsKCV91c2VybmFtZUILCglfcGFzc3dvcmRCCgoIX3Byb2plY3QikgEKFlNuYXBzaG90U2FuZGJveFBheWxvYWQSEgoKc2FuZGJveF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCRIwCghyZWdpc3RyeRgEIAEoCzIZLnJ1bm5lci52MWFscGhhMS5SZWdpc3RyeUgAiAEBQgsKCV9yZWdpc3RyeSJHChJGb3JrU2FuZGJveFBheWxvYWQSGQoRc291cmNlX3NhbmRib3hfaWQYASABKAkSFgoObmV3X3NhbmRib3hfaWQYAiABKAkiOQoVU25hcHNob3RTYW5kYm94UmVzdWx0EhIKCnNpemVfYnl0ZXMYASABKAMSDAoEaGFzaBgCIAEoCSJDChFGb3JrU2FuZGJveFJlc3VsdBIbCg5kYWVtb25fdmVyc2lvbhgBIAEoCUgAiAEBQhEKD19kYWVtb25fdmVyc2lvbiIpChNQYXVzZVNhbmRib3hQYXlsb2FkEhIKCnNhbmRib3hfaWQYASABKAkiFAoSUGF1c2VTYW5kYm94UmVzdWx0KnkKB0pvYlR5cGUSGAoUSk9CX1RZUEVfVU5TUEVDSUZJRUQQABIdChlKT0JfVFlQRV9TTkFQU0hPVF9TQU5EQk9YEAESGQoVSk9CX1RZUEVfRk9SS19TQU5EQk9YEAISGgoWSk9CX1RZUEVfUEFVU0VfU0FOREJPWBADQkdaRWdpdGh1Yi5jb20vZGF5dG9uYWlvL2RheXRvbmEvZ2VuL3Byb3RvL3J1bm5lci92MWFscGhhMTtydW5uZXJ2MWFscGhhMWIGcHJvdG8z',
   )
 
 /**
@@ -177,37 +177,6 @@ export const PauseSandboxResultSchema: GenMessage<PauseSandboxResult> =
   messageDesc(file_runner_v1alpha1_job, 6)
 
 /**
- * @generated from message runner.v1alpha1.ResumeSandboxPayload
- */
-export type ResumeSandboxPayload = Message<'runner.v1alpha1.ResumeSandboxPayload'> & {
-  /**
-   * @generated from field: string sandbox_id = 1;
-   */
-  sandboxId: string
-}
-
-/**
- * Describes the message runner.v1alpha1.ResumeSandboxPayload.
- * Use `create(ResumeSandboxPayloadSchema)` to create a new message.
- */
-export const ResumeSandboxPayloadSchema: GenMessage<ResumeSandboxPayload> =
-  /*@__PURE__*/
-  messageDesc(file_runner_v1alpha1_job, 7)
-
-/**
- * @generated from message runner.v1alpha1.ResumeSandboxResult
- */
-export type ResumeSandboxResult = Message<'runner.v1alpha1.ResumeSandboxResult'> & {}
-
-/**
- * Describes the message runner.v1alpha1.ResumeSandboxResult.
- * Use `create(ResumeSandboxResultSchema)` to create a new message.
- */
-export const ResumeSandboxResultSchema: GenMessage<ResumeSandboxResult> =
-  /*@__PURE__*/
-  messageDesc(file_runner_v1alpha1_job, 8)
-
-/**
  * @generated from enum runner.v1alpha1.JobType
  */
 export enum JobType {
@@ -230,11 +199,6 @@ export enum JobType {
    * @generated from enum value: JOB_TYPE_PAUSE_SANDBOX = 3;
    */
   PAUSE_SANDBOX = 3,
-
-  /**
-   * @generated from enum value: JOB_TYPE_RESUME_SANDBOX = 4;
-   */
-  RESUME_SANDBOX = 4,
 }
 
 /**

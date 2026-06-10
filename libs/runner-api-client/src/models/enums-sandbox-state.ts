@@ -28,9 +28,6 @@ export const EnumsSandboxState = {
     SandboxStateError: 'error',
     SandboxStateUnknown: 'unknown',
     SandboxStatePullingSnapshot: 'pulling_snapshot',
-    SandboxStatePausing: 'pausing',
-    SandboxStatePaused: 'paused',
-    SandboxStateResuming: 'resuming',
     UNKNOWN_DEFAULT_OPEN_API: '11184809',
 } as const;
 

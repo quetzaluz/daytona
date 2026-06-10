@@ -14347,7 +14347,6 @@ components:
       - SNAPSHOT_SANDBOX
       - FORK_SANDBOX
       - PAUSE_SANDBOX
-      - RESUME_SANDBOX
       type: string
     Job:
       example:

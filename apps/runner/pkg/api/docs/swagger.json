@@ -1964,10 +1964,7 @@
         "resizing",
         "error",
         "unknown",
-        "pulling_snapshot",
-        "pausing",
-        "paused",
-        "resuming"
+        "pulling_snapshot"
       ],
       "x-enum-varnames": [
         "SandboxStateCreating",
@@ -1981,10 +1978,7 @@
         "SandboxStateResizing",
         "SandboxStateError",
         "SandboxStateUnknown",
-        "SandboxStatePullingSnapshot",
-        "SandboxStatePausing",
-        "SandboxStatePaused",
-        "SandboxStateResuming"
+        "SandboxStatePullingSnapshot"
       ]
     }
   },

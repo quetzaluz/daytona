@@ -2106,14 +2106,15 @@ export class SandboxService {
       })
 
       if (wasPaused) {
-        // Dispatch RESUME_SANDBOX job; roll back state to PAUSED if the runner adapter rejects.
+        // Dispatch START_SANDBOX job; runner detects host-side paused state and unpauses transparently.
+        // Roll back state to PAUSED if the runner adapter rejects.
         try {
           if (!sandbox.runnerId) {
             throw new NotFoundException(`Sandbox with ID ${sandbox.id} does not have a runner`)
           }
           const runner = await this.runnerService.findOneOrFail(sandbox.runnerId)
           const runnerAdapter = await this.runnerAdapterFactory.create(runner)
-          await runnerAdapter.resumeSandbox(sandbox.id)
+          await runnerAdapter.startSandbox(sandbox.id, sandbox.authToken)
         } catch (error) {
           await this.sandboxRepository.updateWhere(sandbox.id, {
             updateData: {

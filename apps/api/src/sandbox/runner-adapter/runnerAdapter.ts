@@ -128,8 +128,6 @@ export interface RunnerAdapter {
 
   pauseSandbox(sandboxId: string): Promise<void>
 
-  resumeSandbox(sandboxId: string): Promise<void>
-
   createSnapshotFromSandbox(
     sandboxId: string,
     snapshotName: string,
