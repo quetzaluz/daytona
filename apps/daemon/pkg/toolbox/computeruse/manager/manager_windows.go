@@ -40,11 +40,14 @@ var ErrNoActiveConsoleSession = errors.New("no active console session available;
 // handle during CreateProcessAsUser.
 func activeConsoleUserToken() (windows.Token, error) {
 	deadline := time.Now().Add(consoleSessionPollTimeout)
+	var lastErr error
 	for {
 		sid := windows.WTSGetActiveConsoleSessionId()
 		if sid != 0xFFFFFFFF {
 			var raw windows.Token
-			if err := windows.WTSQueryUserToken(sid, &raw); err == nil {
+			if err := windows.WTSQueryUserToken(sid, &raw); err != nil {
+				lastErr = fmt.Errorf("WTSQueryUserToken(sid=%d): %w", sid, err)
+			} else {
 				var primary windows.Token
 				err := windows.DuplicateTokenEx(
 					raw,
@@ -58,9 +61,16 @@ func activeConsoleUserToken() (windows.Token, error) {
 				if err == nil {
 					return primary, nil
 				}
+				lastErr = fmt.Errorf("DuplicateTokenEx(sid=%d): %w", sid, err)
 			}
 		}
 		if time.Now().After(deadline) {
+			// Distinguish "no session ever appeared" from "token acquisition
+			// kept failing" (e.g. ERROR_PRIVILEGE_NOT_HELD when the daemon is
+			// not running as SYSTEM); the sentinel stays errors.Is-able.
+			if lastErr != nil {
+				return 0, fmt.Errorf("%w (last attempt: %v)", ErrNoActiveConsoleSession, lastErr)
+			}
 			return 0, ErrNoActiveConsoleSession
 		}
 		time.Sleep(consoleSessionPollInterval)
@@ -74,12 +84,8 @@ func activeConsoleUserToken() (windows.Token, error) {
 // racing an in-flight spawn waits for it to finish and then kills the fresh
 // instance — nothing leaks.
 func GetComputerUse(logger *slog.Logger, path string) (computeruse.IComputerUse, error) {
-	return getOrSpawn(func() (*plugin.Client, computeruse.IComputerUse, string, error) {
-		client, impl, err := spawnInConsoleSession(logger, path)
-		if err != nil {
-			return nil, nil, "", err
-		}
-		return client, impl, filepath.Dir(path), nil
+	return getOrSpawn(func() (*plugin.Client, computeruse.IComputerUse, error) {
+		return spawnInConsoleSession(logger, path)
 	})
 }
 
