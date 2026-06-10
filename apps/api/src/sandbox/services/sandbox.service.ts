@@ -2090,9 +2090,8 @@ export class SandboxService {
 
       const updateData: Partial<Sandbox> = wasPaused
         ? {
-            state: SandboxState.RESUMING,
-            desiredState: SandboxDesiredState.STARTED,
             pending: true,
+            desiredState: SandboxDesiredState.STARTED,
           }
         : {
             pending: true,
@@ -2104,32 +2103,6 @@ export class SandboxService {
         updateData,
         whereCondition: { pending: false, state: sandbox.state },
       })
-
-      if (wasPaused) {
-        // Dispatch START_SANDBOX job; runner detects host-side paused state and unpauses transparently.
-        // Roll back state to PAUSED if the runner adapter rejects.
-        try {
-          if (!sandbox.runnerId) {
-            throw new NotFoundException(`Sandbox with ID ${sandbox.id} does not have a runner`)
-          }
-          const runner = await this.runnerService.findOneOrFail(sandbox.runnerId)
-          const runnerAdapter = await this.runnerAdapterFactory.create(runner)
-          await runnerAdapter.startSandbox(sandbox.id, sandbox.authToken)
-        } catch (error) {
-          await this.sandboxRepository.updateWhere(sandbox.id, {
-            updateData: {
-              state: SandboxState.PAUSED,
-              desiredState: SandboxDesiredState.PAUSED,
-              pending: false,
-            },
-            whereCondition: { state: SandboxState.RESUMING },
-          })
-          throw error
-        }
-
-        this.eventEmitter.emit(SandboxEvents.STARTED, new SandboxStartedEvent(updatedSandbox))
-        return this.findOneByIdOrName(sandbox.id, organization.id)
-      }
 
       this.eventEmitter.emit(SandboxEvents.STARTED, new SandboxStartedEvent(updatedSandbox))
 
