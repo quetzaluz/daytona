@@ -58,6 +58,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	stdOutReader, stdOutWriter := io.Pipe()
 
 	go func() {
+		defer close(sizeCh)
 		for {
 			messageType, p, err := conn.ReadMessage()
 			if err != nil {

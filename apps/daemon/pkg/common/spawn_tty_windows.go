@@ -9,30 +9,10 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"os"
 
 	"github.com/UserExistsError/conpty"
 )
-
-const (
-	defaultTTYCols = 80
-	defaultTTYRows = 24
-)
-
-type TTYSize struct {
-	Height int
-	Width  int
-}
-
-type SpawnTTYOptions struct {
-	Dir      string
-	StdIn    io.Reader
-	StdOut   io.Writer
-	Term     string
-	Env      []string
-	InitCols int
-	InitRows int
-	SizeCh   <-chan TTYSize
-}
 
 func SpawnTTY(opts SpawnTTYOptions) error {
 	shell := GetShell()
@@ -56,6 +36,12 @@ func SpawnTTY(opts SpawnTTYOptions) error {
 	}
 	if opts.Dir != "" {
 		cptyOpts = append(cptyOpts, conpty.ConPtyWorkDir(opts.Dir))
+	}
+	if len(opts.Env) > 0 {
+		// ConPtyEnv replaces the child's entire environment block, so
+		// append the extras to the inherited environment to keep the
+		// Linux semantics of Env.
+		cptyOpts = append(cptyOpts, conpty.ConPtyEnv(append(os.Environ(), opts.Env...)))
 	}
 
 	cpty, err := conpty.Start(cmdLine, cptyOpts...)

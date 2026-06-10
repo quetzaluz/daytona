@@ -64,18 +64,6 @@ func GetShell() string {
 	return "powershell.exe"
 }
 
-// GetShellArgs returns the arguments needed to execute a command in the shell.
-// For PowerShell: -NoProfile -NonInteractive -Command
-// For cmd.exe: /C
-func GetShellArgs(shell string) []string {
-	// Check if it's PowerShell
-	if isPowerShell(shell) {
-		return []string{"-NoProfile", "-NonInteractive", "-Command"}
-	}
-	// Assume cmd.exe
-	return []string{"/C"}
-}
-
 // NewShellCommand returns an exec.Cmd that runs command through shell.
 // An empty command yields an interactive shell invocation.
 //
@@ -91,7 +79,7 @@ func NewShellCommand(shell, command string) *exec.Cmd {
 		return exec.Command(shell)
 	}
 	if IsPowerShell(shell) {
-		return exec.Command(shell, append(GetShellArgs(shell), command)...)
+		return exec.Command(shell, "-NoProfile", "-NonInteractive", "-Command", command)
 	}
 	// cmd.Args is bypassed when SysProcAttr.CmdLine is set; keep it
 	// populated anyway so logs and debuggers show the intended invocation.
@@ -100,11 +88,6 @@ func NewShellCommand(shell, command string) *exec.Cmd {
 		CmdLine: `"` + shell + `" /C ` + command,
 	}
 	return cmd
-}
-
-// isPowerShell checks if the shell path refers to PowerShell (internal use)
-func isPowerShell(shell string) bool {
-	return IsPowerShell(shell)
 }
 
 // IsPowerShell checks if the shell path refers to PowerShell

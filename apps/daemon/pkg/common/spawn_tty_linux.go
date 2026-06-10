@@ -16,20 +16,6 @@ import (
 	"github.com/creack/pty"
 )
 
-type TTYSize struct {
-	Height int
-	Width  int
-}
-
-type SpawnTTYOptions struct {
-	Dir    string
-	StdIn  io.Reader
-	StdOut io.Writer
-	Term   string
-	Env    []string
-	SizeCh <-chan TTYSize
-}
-
 func SpawnTTY(opts SpawnTTYOptions) error {
 	shell := GetShell()
 	cmd := exec.Command(shell)
@@ -41,7 +27,13 @@ func SpawnTTY(opts SpawnTTYOptions) error {
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SHELL=%s", shell))
 	cmd.Env = append(cmd.Env, opts.Env...)
 
-	f, err := pty.Start(cmd)
+	var f *os.File
+	var err error
+	if opts.InitCols >= 1 && opts.InitRows >= 1 {
+		f, err = pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(opts.InitRows), Cols: uint16(opts.InitCols)})
+	} else {
+		f, err = pty.Start(cmd)
+	}
 	if err != nil {
 		return err
 	}
