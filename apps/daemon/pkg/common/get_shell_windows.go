@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 )
 
 // GetShell returns the path to the preferred shell on Windows.
@@ -73,6 +74,32 @@ func GetShellArgs(shell string) []string {
 	}
 	// Assume cmd.exe
 	return []string{"/C"}
+}
+
+// NewShellCommand returns an exec.Cmd that runs command through shell.
+// An empty command yields an interactive shell invocation.
+//
+// PowerShell parses the CommandLineToArgvW-style quoting Go produces for
+// argv elements (embedded quotes escaped as \"), so the command is passed
+// as a regular argument. cmd.exe does NOT understand that escaping
+// (golang/go#17149): any command containing a double quote would arrive
+// mangled. For cmd.exe the raw command line is therefore set verbatim via
+// SysProcAttr.CmdLine, as the os/exec documentation prescribes for
+// cmd.exe-style parsers.
+func NewShellCommand(shell, command string) *exec.Cmd {
+	if command == "" {
+		return exec.Command(shell)
+	}
+	if IsPowerShell(shell) {
+		return exec.Command(shell, append(GetShellArgs(shell), command)...)
+	}
+	// cmd.Args is bypassed when SysProcAttr.CmdLine is set; keep it
+	// populated anyway so logs and debuggers show the intended invocation.
+	cmd := exec.Command(shell, "/C", command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CmdLine: `"` + shell + `" /C ` + command,
+	}
+	return cmd
 }
 
 // isPowerShell checks if the shell path refers to PowerShell (internal use)
