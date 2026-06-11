@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import json
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from daytona.common.daytona import CreateSandboxFromImageParams, CreateSandboxFromSnapshotParams, DaytonaConfig
-from daytona.common.errors import DaytonaAuthenticationError, DaytonaValidationError
+from daytona.common.errors import DaytonaAuthenticationError, DaytonaError, DaytonaValidationError
 from daytona.common.sandbox import Resources
+from daytona_api_client import SandboxState
+from daytona_api_client.exceptions import ConflictException, NotFoundException
+
+from .conftest import make_sandbox_dto
 
 SYNC_MODULE = "daytona._sync.daytona"
 
@@ -19,9 +24,10 @@ def _make_daytona(config=None):
     from daytona._sync.daytona import Daytona
     from daytona_api_client import Configuration
 
-    with patch(f"{SYNC_MODULE}.ApiClient") as mock_api_cls, patch(
-        f"{SYNC_MODULE}.ToolboxApiClient"
-    ) as mock_toolbox_cls:
+    with (
+        patch(f"{SYNC_MODULE}.ApiClient") as mock_api_cls,
+        patch(f"{SYNC_MODULE}.ToolboxApiClient") as mock_toolbox_cls,
+    ):
         mock_api_instance = MagicMock()
         mock_api_instance.configuration = Configuration(host="https://test.daytona.io/api")
         mock_api_instance.default_headers = {}
@@ -251,3 +257,185 @@ class TestDaytonaValidateLanguageLabel:
         daytona = _make_daytona()
         with pytest.raises(DaytonaValidationError, match=f"Invalid {CODE_TOOLBOX_LANGUAGE_LABEL}"):
             daytona._validate_language_label("ruby")
+
+
+def _not_found(message: str = "Sandbox not found") -> NotFoundException:
+    return NotFoundException(status=404, reason="Not Found", body=json.dumps({"message": message}))
+
+
+def _conflict(name: str) -> ConflictException:
+    return ConflictException(
+        status=409, reason="Conflict", body=json.dumps({"message": f"Sandbox with name {name} already exists"})
+    )
+
+
+class TestDaytonaGetOrCreate:
+    """Tests for `Daytona.get_or_create`, matching by `params.name`."""
+
+    def test_name_required_raises(self, env_with_api_key):
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+
+        with pytest.raises(DaytonaValidationError, match="params.name is required"):
+            daytona.get_or_create(CreateSandboxFromSnapshotParams(snapshot="snap"), timeout=0)
+
+        daytona._sandbox_api.get_sandbox.assert_not_called()
+        daytona._sandbox_api.create_sandbox.assert_not_called()
+
+    def test_creates_when_no_sandbox_with_name_exists(self, env_with_api_key, sandbox_dto):
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        daytona._sandbox_api.get_sandbox.side_effect = _not_found()
+        daytona._sandbox_api.create_sandbox.return_value = sandbox_dto
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        result = daytona.get_or_create(params, timeout=0)
+
+        assert result.id == sandbox_dto.id
+        daytona._sandbox_api.get_sandbox.assert_called_once_with("test-sandbox")
+        create_request = daytona._sandbox_api.create_sandbox.call_args.args[0]
+        assert create_request.name == "test-sandbox"
+
+    def test_returns_existing_started_sandbox_without_creating(self, env_with_api_key, sandbox_dto):
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        daytona._sandbox_api.get_sandbox.return_value = sandbox_dto
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        result = daytona.get_or_create(params, timeout=0)
+
+        assert result.id == sandbox_dto.id
+        assert result.state == SandboxState.STARTED
+        daytona._sandbox_api.create_sandbox.assert_not_called()
+        daytona._sandbox_api.start_sandbox.assert_not_called()
+
+    def test_first_call_creates_second_call_returns_same_sandbox(self, env_with_api_key, sandbox_dto):
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        # First lookup misses; second (after creation) finds the Sandbox we just made.
+        daytona._sandbox_api.get_sandbox.side_effect = [_not_found(), sandbox_dto]
+        daytona._sandbox_api.create_sandbox.return_value = sandbox_dto
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        first = daytona.get_or_create(params, timeout=0)
+        second = daytona.get_or_create(params, timeout=0)
+
+        assert first.id == second.id == sandbox_dto.id
+        daytona._sandbox_api.create_sandbox.assert_called_once()
+        assert daytona._sandbox_api.get_sandbox.call_count == 2
+
+    def test_starts_existing_stopped_sandbox(self, env_with_api_key, stopped_sandbox_dto, sandbox_dto):
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        daytona._sandbox_api.get_sandbox.return_value = stopped_sandbox_dto
+        # start_sandbox brings it back to 'started'.
+        daytona._sandbox_api.start_sandbox.return_value = sandbox_dto
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        result = daytona.get_or_create(params, timeout=0)
+
+        daytona._sandbox_api.start_sandbox.assert_called_once()
+        daytona._sandbox_api.create_sandbox.assert_not_called()
+        assert result.state == SandboxState.STARTED
+
+    def test_starts_existing_archived_sandbox(self, env_with_api_key, sandbox_dto):
+        archived_dto = make_sandbox_dto(state=SandboxState.ARCHIVED)
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        daytona._sandbox_api.get_sandbox.return_value = archived_dto
+        daytona._sandbox_api.start_sandbox.return_value = sandbox_dto
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        result = daytona.get_or_create(params, timeout=0)
+
+        daytona._sandbox_api.start_sandbox.assert_called_once()
+        daytona._sandbox_api.create_sandbox.assert_not_called()
+        assert result.state == SandboxState.STARTED
+
+    def test_raises_for_existing_sandbox_in_error_state(self, env_with_api_key):
+        error_dto = make_sandbox_dto(state=SandboxState.ERROR, error_reason="boom")
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        daytona._sandbox_api.get_sandbox.return_value = error_dto
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        with pytest.raises(DaytonaError, match="'error' state"):
+            daytona.get_or_create(params, timeout=0)
+
+        daytona._sandbox_api.create_sandbox.assert_not_called()
+        daytona._sandbox_api.start_sandbox.assert_not_called()
+
+    def test_conflict_fallback_raises_if_sandbox_vanishes(self, env_with_api_key):
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+        # Both lookups miss: the first because the Sandbox doesn't exist yet, the
+        # second (post-conflict) because it was deleted in between.
+        daytona._sandbox_api.get_sandbox.side_effect = _not_found()
+        daytona._sandbox_api.create_sandbox.side_effect = _conflict("test-sandbox")
+
+        params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+        with pytest.raises(DaytonaError, match="could not be created"):
+            daytona.get_or_create(params, timeout=0)
+
+    def test_concurrent_calls_create_only_one_sandbox(self, env_with_api_key, sandbox_dto):
+        """Two `get_or_create` calls racing on the same name must not create two Sandboxes.
+
+        Both calls see "no Sandbox named X" from `get`, so both attempt `create`. The
+        unique (organization, name) constraint means exactly one `create` succeeds; the
+        other gets a 409 (`DaytonaConflictError`), falls back to `get`, and returns the
+        winner's Sandbox.
+        """
+        daytona = _make_daytona()
+        daytona._sandbox_api = MagicMock()
+
+        lock = threading.Lock()
+        get_calls = 0
+        create_calls = 0
+        # Both threads must observe "not found" before either is allowed to create —
+        # this is what makes it a genuine race rather than a sequential create-then-get.
+        both_missed = threading.Barrier(2)
+
+        def get_sandbox_side_effect(*_args, **_kwargs):
+            nonlocal get_calls
+            with lock:
+                idx = get_calls
+                get_calls += 1
+            if idx < 2:
+                both_missed.wait()
+                raise _not_found()
+            return sandbox_dto
+
+        def create_sandbox_side_effect(*_args, **_kwargs):
+            nonlocal create_calls
+            with lock:
+                create_calls += 1
+                won = create_calls == 1
+            if won:
+                return sandbox_dto
+            raise _conflict("test-sandbox")
+
+        daytona._sandbox_api.get_sandbox.side_effect = get_sandbox_side_effect
+        daytona._sandbox_api.create_sandbox.side_effect = create_sandbox_side_effect
+
+        results: list[object] = [None, None]
+        errors: list[BaseException] = []
+
+        def call(index: int):
+            try:
+                params = CreateSandboxFromSnapshotParams(name="test-sandbox", snapshot="snap")
+                results[index] = daytona.get_or_create(params, timeout=0)
+            except BaseException as exc:  # noqa: BLE001 - surface to main thread
+                errors.append(exc)
+
+        threads = [threading.Thread(target=call, args=(i,)) for i in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert not errors, errors
+        assert results[0] is not None and results[1] is not None
+        assert results[0].id == results[1].id == sandbox_dto.id
+        # Both callers attempted create(); exactly one Sandbox resulted.
+        assert daytona._sandbox_api.create_sandbox.call_count == 2
+        assert daytona._sandbox_api.get_sandbox.call_count == 3

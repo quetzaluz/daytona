@@ -40,7 +40,13 @@ from ..common.daytona import (
     CreateSandboxFromSnapshotParams,
     DaytonaConfig,
 )
-from ..common.errors import DaytonaAuthenticationError, DaytonaValidationError
+from ..common.errors import (
+    DaytonaAuthenticationError,
+    DaytonaConflictError,
+    DaytonaError,
+    DaytonaNotFoundError,
+    DaytonaValidationError,
+)
 from ..common.image import Image
 from ..common.sandbox import ListSandboxesQuery
 from ..internal.http_client import build_sync_http_client
@@ -504,6 +510,134 @@ class Daytona:
             # so we don't need to pass one to internal methods.
             sandbox.wait_for_sandbox_start(timeout=0)
 
+        return sandbox
+
+    @intercept_errors(message_prefix="Failed to get or create sandbox: ")
+    @with_timeout()
+    @with_instrumentation()
+    def get_or_create(
+        self,
+        params: CreateSandboxFromSnapshotParams | CreateSandboxFromImageParams,
+        *,
+        timeout: float = 60,  # pylint: disable=unused-argument # pyright: ignore[reportUnusedParameter]
+        on_snapshot_create_logs: Callable[[str], None] | None = None,
+    ) -> Sandbox:
+        """Returns the Sandbox named ``params.name``, creating it if it doesn't exist yet.
+
+        Match key: ``params.name`` (required). Sandbox names are unique per organization
+        (enforced by the API), so at most one Sandbox can ever match — there is no
+        "which one of several matches" ambiguity to resolve.
+
+        Concurrency: Two ``get_or_create`` calls racing on the same ``name`` cannot both
+        end up creating a Sandbox. Each call first looks the name up with `get`; if
+        neither sees an existing Sandbox, both proceed to `create`. The API rejects the
+        loser's `create` with a 409 Conflict (`DaytonaConflictError`) because of the
+        per-organization uniqueness constraint on ``name`` — this method catches that
+        conflict and falls back to ``get(params.name)``, returning the Sandbox the
+        winner created. Exactly one Sandbox is ever created for a given name, no matter
+        how many callers race.
+
+        Existing-Sandbox handling (based on `state`):
+            - `started`: returned as-is.
+            - `stopped` or `archived`: started (and waited on until ready) before being
+              returned.
+            - any other transient state (`creating`, `starting`, `restoring`,
+              `pending_build`, ...): waited on until it reaches `started`. This covers
+              the case where another caller's `get_or_create`/`create` for the same name
+              is still in flight.
+            - `error` or `build_failed`: raises `DaytonaError` without modifying or
+              recreating the Sandbox — delete it (or resolve the underlying issue)
+              before calling `get_or_create` again with this name.
+
+        Args:
+            params (CreateSandboxFromSnapshotParams | CreateSandboxFromImageParams): Same
+                parameters as `create`, with `name` required — it is both the lookup key
+                and the name the Sandbox is created with if one doesn't already exist.
+            timeout (float): Total time budget (in seconds) for the whole operation —
+                covers the lookup, any `start`/`wait_for_sandbox_start`, and the fallback
+                `create`. 0 means no timeout. Default is 60 seconds.
+            on_snapshot_create_logs (Callable[[str], None] | None): Forwarded to `create`
+                if a new Sandbox needs to be built from an `Image`.
+
+        Returns:
+            Sandbox: A Sandbox named ``params.name`` in the `started` state.
+
+        Raises:
+            DaytonaValidationError: If `params.name` is not set, or if timeout,
+                auto_stop_interval or auto_archive_interval is negative.
+            DaytonaError: If a Sandbox named ``params.name`` already exists in `error` or
+                `build_failed` state; if the Sandbox fails to reach `started` or the
+                overall operation times out.
+
+        Note:
+            Like `create`, this waits for `state == "started"` but does not perform a
+            toolbox-level readiness probe — there is a brief window after `started`
+            where the runner may not yet accept toolbox requests. Closing that gap is
+            tracked separately in
+            [daytonaio/daytona#4642](https://github.com/daytonaio/daytona/issues/4642).
+
+        Example:
+            ```python
+            # The first call creates the Sandbox. Later calls — even concurrent ones —
+            # return the same Sandbox instead of creating duplicates.
+            sandbox = daytona.get_or_create(
+                CreateSandboxFromSnapshotParams(name="my-pinned-sandbox", snapshot="my-snapshot")
+            )
+            ```
+        """
+        if not params.name:
+            raise DaytonaValidationError("params.name is required for get_or_create()")
+
+        try:
+            existing = self.get(params.name)
+        except DaytonaNotFoundError:
+            existing = None
+
+        if existing is not None:
+            return self._settle_existing_sandbox(existing, timeout=0)
+
+        try:
+            # Optimistic create. The API enforces a unique (organization, name)
+            # constraint, so if a concurrent caller wins this race, this raises
+            # DaytonaConflictError (409) instead of creating a second Sandbox.
+            return self.create(
+                cast(CreateSandboxFromImageParams, params),
+                timeout=0,
+                on_snapshot_create_logs=on_snapshot_create_logs,
+            )
+        except DaytonaConflictError as exc:
+            try:
+                existing = self.get(params.name)
+            except DaytonaNotFoundError:
+                raise DaytonaError(
+                    f"Sandbox '{params.name}' could not be created because the name is "
+                    + "already in use, but no Sandbox with that name could be found "
+                    + "afterwards. It may have been deleted by a concurrent operation; "
+                    + "retry get_or_create()."
+                ) from exc
+            return self._settle_existing_sandbox(existing, timeout=0)
+
+    def _settle_existing_sandbox(self, sandbox: Sandbox, *, timeout: float) -> Sandbox:
+        """Brings a Sandbox returned by `get` into the `started` state, per `get_or_create`."""
+        if sandbox.state == SandboxState.STARTED:
+            return sandbox
+
+        if sandbox.state in (SandboxState.ERROR, SandboxState.BUILD_FAILED):
+            raise DaytonaError(
+                f"Sandbox '{sandbox.name}' (id={sandbox.id}) already exists but is in "
+                + f"'{getattr(sandbox.state, 'value', sandbox.state)}' state "
+                + f"(error_reason={sandbox.error_reason!r}). "
+                + "get_or_create() does not modify or recreate Sandboxes in a terminal "
+                + "error state — delete it first, or use a different name."
+            )
+
+        if sandbox.state in (SandboxState.STOPPED, SandboxState.ARCHIVED):
+            sandbox.start(timeout=timeout)
+            return sandbox
+
+        # Transient states (creating, starting, restoring, pending_build, ...): wait
+        # for whoever is bringing this Sandbox up to reach 'started'.
+        sandbox.wait_for_sandbox_start(timeout=timeout)
         return sandbox
 
     @with_instrumentation()

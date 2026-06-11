@@ -100,6 +100,26 @@ sandbox = daytona.create(
 )
 ```
 
+### Get or create a pinned sandbox
+
+Use `get_or_create` for idempotent provisioning of a sandbox you reuse across requests
+(e.g. one sandbox per user, workspace, or tenant). It matches on `name`: if a sandbox
+with that name already exists it is returned (started first if it was stopped or
+archived); otherwise it is created. Sandbox names are unique per organization, and
+concurrent calls with the same name are guaranteed to converge on a single sandbox —
+see the method docstring for the full match-key and concurrency semantics.
+
+```python
+from daytona import Daytona, CreateSandboxFromSnapshotParams
+
+daytona = Daytona()
+sandbox = daytona.get_or_create(
+    CreateSandboxFromSnapshotParams(name="my-pinned-sandbox", snapshot="my-snapshot-name")
+)
+```
+
+The async client exposes the same method: `await daytona.get_or_create(...)`.
+
 ### Execute Commands
 
 Execute commands in the sandbox.
