@@ -49,7 +49,7 @@ from ..common.daytona import (
     CreateSandboxFromSnapshotParams,
     DaytonaConfig,
 )
-from ..common.errors import DaytonaAuthenticationError, DaytonaValidationError
+from ..common.errors import DaytonaAuthenticationError, DaytonaError, DaytonaNotFoundError, DaytonaValidationError
 from ..common.image import Image
 from ..common.sandbox import ListSandboxesQuery
 from ..internal.pool_tracker import AsyncPoolSaturationTracker
@@ -252,6 +252,11 @@ class AsyncDaytona:
             self._target,
             self._shared_session,
         )
+
+        # Per-label-set asyncio.Locks used by get_or_create to prevent within-process races.
+        # asyncio.Lock() may be constructed outside a running event loop (Python ≥ 3.10).
+        self._get_or_create_locks: dict[tuple[str, object], asyncio.Lock] = {}
+        self._get_or_create_locks_guard: asyncio.Lock = asyncio.Lock()
 
         # Initialize OpenTelemetry if enabled
         env = env_reader or DaytonaEnvReader()
@@ -712,6 +717,210 @@ class AsyncDaytona:
             sort=sort,
             order=order,
         )
+
+    async def _get_or_create_key_lock(self, key: tuple[str, object]) -> asyncio.Lock:
+        """Return (creating if needed) the per-idempotency-key asyncio.Lock."""
+        async with self._get_or_create_locks_guard:
+            if key not in self._get_or_create_locks:
+                self._get_or_create_locks[key] = asyncio.Lock()
+            return self._get_or_create_locks[key]
+
+    @intercept_errors(message_prefix="Failed to get or create sandbox: ")
+    @with_instrumentation()
+    async def get_or_create(
+        self,
+        params: CreateSandboxFromSnapshotParams | CreateSandboxFromImageParams,
+        *,
+        timeout: float = 60,
+        on_snapshot_create_logs: Callable[[str], None] | None = None,
+        recreate_on_error: bool = False,
+    ) -> AsyncSandbox:
+        """Returns an existing Sandbox matching the idempotency key, or creates a new one.
+
+        **Match key** — at least one of the following must be set:
+
+        * ``params.name`` (preferred): looks up the sandbox by name with a single API
+          call.  If found, the sandbox is returned (or restarted/waited on, depending
+          on its state).  If not found, one is created with that name.
+        * ``params.labels``: when ``params.name`` is absent, every sandbox whose labels
+          contain *all* provided key-value pairs is a candidate (superset match).  Extra
+          labels on the sandbox are allowed.  Use precise labels to make the key unique.
+
+        **Lifecycle handling** by state:
+
+        +---------------------------------+----------------------------------------------+
+        | State                           | Action                                       |
+        +=================================+==============================================+
+        | ``started``                     | Return immediately                           |
+        +---------------------------------+----------------------------------------------+
+        | ``starting``, ``creating``,     | Wait until ready, then return                |
+        | ``restoring``                   |                                              |
+        +---------------------------------+----------------------------------------------+
+        | ``stopped``, ``archived``,      | Start, wait until ready, then return         |
+        | ``archiving``                   |                                              |
+        +---------------------------------+----------------------------------------------+
+        | ``error``, ``build_failed``     | Raise ``DaytonaError`` unless                |
+        |                                 | ``recreate_on_error=True``                   |
+        +---------------------------------+----------------------------------------------+
+        | ``destroyed``, ``destroying``,  | Treated as absent — a new sandbox is created |
+        | all other terminal states       |                                              |
+        +---------------------------------+----------------------------------------------+
+
+        **Multiple matches** (labels path only): the most recently created sandbox is
+        returned and a ``UserWarning`` is emitted.
+
+        **Concurrency within a single process**: concurrent calls sharing the same
+        idempotency key are serialized by a per-key asyncio.Lock — at most one creation
+        attempt is made.  Calls with *different* keys proceed concurrently.  Across
+        multiple OS processes there is no shared lock; a race can produce two sandboxes;
+        subsequent calls will find both and return the newest (with a warning).
+
+        Args:
+            params: Sandbox specification.  ``params.name`` or ``params.labels`` must
+                be set — they form the idempotency key used to find an existing sandbox.
+            timeout (float): Timeout in seconds for creation / restart.
+                0 means no timeout.  Default is 60 seconds.
+            on_snapshot_create_logs: Callback for snapshot build logs (creation only).
+            recreate_on_error (bool): When *True* and the matching sandbox is in an
+                error state, the old sandbox is deleted and a fresh one is created.
+                When *False* (default), a ``DaytonaError`` is raised instead.
+
+        Returns:
+            AsyncSandbox: An existing or freshly created Sandbox instance, always in
+            the *started* state.
+
+        Raises:
+            DaytonaValidationError: If neither ``params.name`` nor ``params.labels`` is
+                set.
+            DaytonaError: If the matching sandbox is in an error state and
+                ``recreate_on_error`` is *False*.
+
+        Example:
+            By name (simplest — one-API-call lookup):
+            ```python
+            params = CreateSandboxFromSnapshotParams(
+                name="agent-42-sandbox",
+                language="python",
+            )
+            sandbox = await daytona.get_or_create(params)
+            ```
+
+            By labels (flexible — survives renaming):
+            ```python
+            params = CreateSandboxFromSnapshotParams(
+                language="python",
+                labels={"agent-id": "42"},
+            )
+            sandbox = await daytona.get_or_create(params)
+            ```
+        """
+        if not params.name and not params.labels:
+            raise DaytonaValidationError("get_or_create requires params.name or params.labels as the idempotency key")
+
+        if params.name:
+            lock_key: tuple[str, object] = ("name", params.name)
+        else:
+            assert params.labels is not None  # validated above
+            lock_key = ("labels", tuple(sorted(params.labels.items())))
+
+        lock = await self._get_or_create_key_lock(lock_key)
+        async with lock:
+            return await self._get_or_create_under_lock(
+                params,
+                timeout=timeout,
+                on_snapshot_create_logs=on_snapshot_create_logs,
+                recreate_on_error=recreate_on_error,
+            )
+
+    async def _get_or_create_under_lock(
+        self,
+        params: CreateSandboxFromSnapshotParams | CreateSandboxFromImageParams,
+        *,
+        timeout: float,
+        on_snapshot_create_logs: Callable[[str], None] | None,
+        recreate_on_error: bool,
+    ) -> AsyncSandbox:
+        """Implements get-or-create; the per-idempotency-key lock must be held by the caller."""
+        # All state sets use the module-level SandboxState (imported at top of file).
+        runnable_states = {SandboxState.STARTED}
+        waiting_states = {SandboxState.STARTING, SandboxState.CREATING, SandboxState.RESTORING}
+        restartable_states = {SandboxState.STOPPED, SandboxState.ARCHIVED, SandboxState.ARCHIVING}
+        error_states = {SandboxState.ERROR, SandboxState.BUILD_FAILED}
+
+        async def _handle(sandbox: AsyncSandbox) -> AsyncSandbox | None:
+            """Return the sandbox after lifecycle handling, or *None* to signal 'skip'."""
+            if sandbox.state in runnable_states:
+                return sandbox
+            if sandbox.state in waiting_states:
+                await sandbox.wait_for_sandbox_start(timeout=0)
+                return sandbox
+            if sandbox.state in restartable_states:
+                await sandbox.start(timeout)
+                return sandbox
+            if sandbox.state in error_states:
+                if recreate_on_error:
+                    await self.delete(sandbox)
+                    return None
+                raise DaytonaError(
+                    f"Sandbox {sandbox.id!r} is in {sandbox.state!r} state. "
+                    + "Inspect its error_reason or pass recreate_on_error=True to replace it."
+                )
+            return None  # DESTROYED / DESTROYING / other terminal states
+
+        # ----------------------------------------------------------------
+        # Name-based path: single O(1) lookup.
+        # ----------------------------------------------------------------
+        if params.name:
+            try:
+                sandbox = await self.get(params.name)
+            except DaytonaNotFoundError:
+                pass
+            else:
+                result = await _handle(sandbox)
+                if result is not None:
+                    return result
+            return await self._create(params, timeout=timeout, on_snapshot_create_logs=on_snapshot_create_logs)
+
+        # ----------------------------------------------------------------
+        # Labels-based path: paginated list + filter.
+        # ----------------------------------------------------------------
+        all_matches: list[AsyncSandbox] = []
+        error_matches: list[AsyncSandbox] = []
+
+        async for sb in self.list(ListSandboxesQuery(labels=params.labels)):
+            if sb.state in runnable_states or sb.state in waiting_states or sb.state in restartable_states:
+                all_matches.append(sb)
+            elif sb.state in error_states:
+                error_matches.append(sb)
+
+        if not all_matches:
+            if error_matches:
+                if recreate_on_error:
+                    pass  # skip error sandboxes; create fresh below
+                else:
+                    error_matches.sort(key=lambda s: (s.created_at or "", s.id), reverse=True)
+                    bad = error_matches[0]
+                    raise DaytonaError(
+                        f"Sandbox {bad.id!r} matching labels {params.labels!r} is in "
+                        + f"{bad.state!r} state. "
+                        + "Inspect its error_reason or pass recreate_on_error=True to replace it."
+                    )
+            return await self._create(params, timeout=timeout, on_snapshot_create_logs=on_snapshot_create_logs)
+
+        if len(all_matches) > 1:
+            warnings.warn(
+                f"get_or_create: found {len(all_matches)} sandboxes matching labels "
+                + f"{params.labels!r}; returning the most recently created one. "
+                + "Consider using more specific labels to make the key unique.",
+                UserWarning,
+                stacklevel=6,
+            )
+            all_matches.sort(key=lambda s: (s.created_at or "", s.id), reverse=True)
+
+        result = await _handle(all_matches[0])
+        if result is not None:
+            return result
+        return await self._create(params, timeout=timeout, on_snapshot_create_logs=on_snapshot_create_logs)
 
     def _validate_language_label(self, language: str | None = None) -> CodeLanguage:
         """Validates and normalizes the language label.
